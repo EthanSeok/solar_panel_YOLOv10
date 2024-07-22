@@ -119,7 +119,7 @@ def main():
 
     # directory = './output/jeonju_2/'
     intput_image_dir = 'Z:/Projects/240616_solar_panel/결과분석/output/jeonju_2/'
-    api_key = "39b9c3a020b5438fe0c14225dde8a818"
+    api_key = ""
     conf_threshold = 0.499
 
     results = []
