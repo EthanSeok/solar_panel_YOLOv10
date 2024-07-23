@@ -2,18 +2,12 @@ import os
 import cv2
 import matplotlib.pyplot as plt
 from matplotlib import font_manager, rc
-# from ultralytics import YOLO
 from ultralytics import YOLOv10
 import math
 from pyproj import Transformer
 import requests
 import pandas as pd
 from tqdm import tqdm
-
-# font_path = "C:/Windows/Fonts/KoPubDotumMedium.ttf"
-# font = font_manager.FontProperties(fname=font_path).get_name()
-# plt.rcParams['axes.unicode_minus'] = False
-# rc('font', family=font)
 
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
@@ -25,7 +19,7 @@ def tile_to_wtm_bottom_left(x, y, z):
 
 def wtm_to_wgs84(wtm_x, wtm_y):
     transformer = Transformer.from_crs("EPSG:5181", "EPSG:4326")
-    wgs84_lat, wgs84_lon = transformer.transform(wtm_y, wtm_x)  # Note the order change
+    wgs84_lat, wgs84_lon = transformer.transform(wtm_y, wtm_x)
     return wgs84_lat, wgs84_lon
 
 def get_tile_info_from_filename(filename):
@@ -73,6 +67,7 @@ def process_image(image_path, api_key, model, result_dir, conf_threshold):
         for box in result.boxes:
             xmin, ymin, xmax, ymax = box.xyxy[0].cpu().numpy()
 
+            # 중심 좌표
             center_x = int((xmin + xmax) / 2)
             center_y = int((ymin + ymax) / 2)
 
@@ -84,9 +79,29 @@ def process_image(image_path, api_key, model, result_dir, conf_threshold):
 
             pixel_lat, pixel_lon = wtm_to_wgs84(pixel_wtm_x, pixel_wtm_y)
 
+            corners = [
+                (xmin, ymin),
+                (xmax, ymin),
+                (xmax, ymax),
+                (xmin, ymax)
+            ]
+
+            corner_coords = []
+            for (cx, cy) in corners:
+                corner_wtm_x = bottom_left_wtm_x + cx * wtm_per_pixel
+                corner_wtm_y = bottom_left_wtm_y - cy * wtm_per_pixel
+                corner_lat, corner_lon = wtm_to_wgs84(corner_wtm_x, corner_wtm_y)
+                corner_coords.append((corner_lat, corner_lon))
+
             try:
                 address, road_address = get_address(pixel_lat, pixel_lon, api_key)
-                addresses.append((bbox_idx, address, road_address, pixel_lat, pixel_lon))
+                addresses.append((
+                    bbox_idx, address, road_address, pixel_lat, pixel_lon,
+                    corner_coords[0][0], corner_coords[0][1],
+                    corner_coords[1][0], corner_coords[1][1],
+                    corner_coords[2][0], corner_coords[2][1],
+                    corner_coords[3][0], corner_coords[3][1]
+                ))
                 bbox_idx += 1
             except Exception as e:
                 print(e)
@@ -111,14 +126,14 @@ def process_image(image_path, api_key, model, result_dir, conf_threshold):
 
 def main():
     model = YOLOv10('../models/best3.pt')
-    output_dir = './output/address/jeonju_2/'
-    result_image_dir = './result_image/jeonju_2'
+    output_dir = './output/address/test/'
+    result_image_dir = './result_image/test'
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # directory = './output/jeonju_2/'
     intput_image_dir = 'Z:/Projects/240616_solar_panel/결과분석/output/jeonju_2/'
+    intput_image_dir = '../images/'
     api_key = ""
     conf_threshold = 0.499
 
@@ -127,14 +142,22 @@ def main():
         if filename.endswith(".jpg"):
             image_path = os.path.join(intput_image_dir, filename)
             addresses = process_image(image_path, api_key, model, result_image_dir, conf_threshold)
-            for idx, address, road_address, lat, lon in addresses:
+            for idx, address, road_address, lat, lon, lat1, lon1, lat2, lon2, lat3, lon3, lat4, lon4 in addresses:
                 results.append({
                     "filename": filename.rsplit('.', 1)[0],
                     "bbox_idx": idx,
                     "address": address,
                     "road_address": road_address,
                     "latitude": lat,
-                    "longitude": lon
+                    "longitude": lon,
+                    "lat1": lat1,
+                    "lon1": lon1,
+                    "lat2": lat2,
+                    "lon2": lon2,
+                    "lat3": lat3,
+                    "lon3": lon3,
+                    "lat4": lat4,
+                    "lon4": lon4
                 })
 
     df = pd.DataFrame(results)
